@@ -39,6 +39,7 @@ class MOF_crystal:
         self.ratoms = ratoms
         self.charges = charges
         self.forcefield = []
+        self.LJ_params = []
 
         # Ensure that lists are nparrays
         if not isinstance(self.box, np.ndarray):
@@ -201,3 +202,44 @@ class MOF_crystal:
             rmin = min([x[idim] for x in self.ratoms])
             for x in self.ratoms:
                 x[idim] += -rmin - self.box[idim] / 2.
+
+    def add_LJ_forcefield(self, input_dict):
+        """ Import a dictionary of atom types with associated Lennard-Jones parameters """
+        if len(self.forcefield) == 0:
+            self.forcefield = input_dict
+        else:
+            self.forcefield += input_dict
+
+    def assign_LJ_params(self, mapping):
+        """
+           Assign LJ parameters to each atom based on forcefield dictionary
+
+           mapping: string, either 'atom_symbol' or 'atom_label'
+                    identifies the class property for mapping
+                    to LJ types
+        """
+        if mapping == 'atom_symbol':
+            atom_loop = self.atom_symbols
+        elif mapping == 'atom_label':
+            atom_loop = self.atom_labels
+        else:
+            raise Exception('Unknown mapping:', mapping)
+        LJ_params = []
+        params_fixed = True
+        for atom in atom_loop:
+            param_fixed = False
+            for site_type in self.forcefield:
+                if site_type[mapping] == atom:
+                    LJ_params.append({
+                        'sigma': site_type['sigma'],
+                        'epsilon': site_type['epsilon']
+                    })
+                    param_fixed = True
+            if param_fixed is False:
+                params_fixed = False
+                print('Warning: no match for', atom, 'by', mapping)
+        if params_fixed:
+            print('LJ Parameters set successfully')
+            self.LJ_params = LJ_params
+        else:
+            raise Exception('ERROR: unable to match some atoms')
