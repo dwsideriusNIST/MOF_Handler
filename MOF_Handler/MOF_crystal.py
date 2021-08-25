@@ -194,3 +194,10 @@ class MOF_crystal:
                   ' before neutralization')
         # Neutralize the structure
         self.charges = self.charges - qsum / len(self.charges)
+
+    def recenter(self):
+        """ Recenter the atom positions """
+        for idim in range(3):
+            rmin = min([x[idim] for x in self.ratoms])
+            for x in self.ratoms:
+                x[idim] += -rmin - self.box[idim] / 2.
