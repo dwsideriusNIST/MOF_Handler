@@ -41,9 +41,9 @@ class MOF_crystal:
         self.forcefield = []
 
         # Ensure that lists are nparrays
-        if isinstance(self.box) != np.ndarray:
+        if not isinstance(self.box, np.ndarray):
             self.box = np.array(self.box)
-        if isinstance(self.ratoms) != np.ndarray:
+        if not isinstance(self.ratoms, np.ndarray):
             self.ratoms = np.array(self.ratoms)
 
     @classmethod
@@ -53,9 +53,9 @@ class MOF_crystal:
         cif_data = cif.read(file).sole_block()
         # Unit Cell Parameters
         box = np.array([
-            float(cif_data.find_values('_cell_length_a')),
-            float(cif_data.find_values('_cell_length_b')),
-            float(cif_data.find_values('_cell_length_c'))
+            float(cif_data.find_values('_cell_length_a')[0]),
+            float(cif_data.find_values('_cell_length_b')[0]),
+            float(cif_data.find_values('_cell_length_c')[0])
         ])
         # Atom Symbols [e.g., Carbon=C, Oxygen=O, etc.]
         atom_symbols = [
