@@ -243,3 +243,66 @@ class MOF_crystal:
             self.LJ_params = LJ_params
         else:
             raise Exception('ERROR: unable to match some atoms')
+
+    def replicate(self, reps):
+        """
+           Replicate the unit cell based on reps specification
+
+           reps: list of 3 integers
+        """
+        #pylint: disable-msg=too-many-branches
+        #pylint: disable-msg=too-many-locals
+        # Check types
+        for irep in reps:
+            if not isinstance(irep, int):
+                raise Exception('ERROR in replicate list', reps)
+        # Lazily return original object if reps = [1,1,1]
+        if reps == [1, 1, 1]:
+            return self
+        # To continue, we need box dimensions
+        if len(self.box) == 3:
+            pass
+        elif self.box is None or self.box == []:
+            raise Exception(
+                'ERROR: Cannot replicate cell without box specification')
+        # Replicate the atoms and positions
+        box = [self.box[idim] * float(reps[idim]) for idim in range(3)]
+        atom_symbols = []
+        atom_labels = []
+        ratoms = []
+        charges = []
+        Natoms = len(self.ratoms)
+        # Replicate charges?
+        if len(self.charges) == Natoms:
+            copy_charges = True
+            print('Copying Charges: ', True)
+        elif len(self.charges) == 0:
+            copy_charges = False
+            print('Copying Charges: ', False)
+        else:
+            raise Exception('ERROR: list of charges does not match atom count')
+        copy_symbols = bool(len(self.atom_symbols) > 0)
+        copy_labels = bool(len(self.atom_labels) > 0)
+        # Replicate in positive octants [can re-center later]
+        for xrep in range(reps[0]):
+            for yrep in range(reps[1]):
+                for zrep in range(reps[2]):
+                    irep = [xrep, yrep, zrep]
+                    for iatom in range(Natoms):
+                        if copy_symbols:
+                            atom_symbols.append(self.atom_symbols[iatom])
+                        if copy_labels:
+                            atom_labels.append(self.atom_labels[iatom])
+                        position = [
+                            self.ratoms[iatom][idim] +
+                            float(irep[idim] * self.box[idim])
+                            for idim in range(3)
+                        ]
+                        ratoms.append(position)
+                        if copy_charges:
+                            charges.append(self.charges[iatom])
+        return MOF_crystal(box=box,
+                           atom_symbols=atom_symbols,
+                           atom_labels=atom_labels,
+                           ratoms=ratoms,
+                           charges=charges)
