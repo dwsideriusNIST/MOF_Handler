@@ -185,3 +185,12 @@ class MOF_crystal:
         loop_pos = block.init_loop('_atom_site_', columns)
         loop_pos.set_all_values(loop_data)
         d.write_file(outfile)
+
+    def neutralize(self):
+        """ Adjust charges to neutralize the structure """
+        qsum = sum(self.charges)
+        if np.abs(qsum) > 1.e-4:
+            print('Warning: Net Charge is ' + str(qsum) +
+                  ' before neutralization')
+        # Neutralize the structure
+        self.charges = self.charges - qsum / len(self.charges)
