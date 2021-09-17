@@ -136,7 +136,7 @@ class MOF_crystal:
                     f.write(' ' + str(pos[idim]))
                 f.write('\n')
 
-    def to_CIF(self, outfile):
+    def to_CIF(self, outfile, write_charges=True):
         """ Write the MOF as a simplified, minimal CIF file """
         d = cif.Document()
         d.add_new_block(outfile.replace('.cif', ''))
@@ -180,7 +180,7 @@ class MOF_crystal:
                           for x in self.ratoms]).astype(str))
         ]
         # Charges?
-        if len(self.charges) == Natoms:
+        if len(self.charges) == Natoms and write_charges:
             columns.append('charge')
             loop_data.append(list(np.array(self.charges).astype(str)))
         loop_pos = block.init_loop('_atom_site_', columns)
