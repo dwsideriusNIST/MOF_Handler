@@ -19,6 +19,7 @@ Provide a class for a P 1 crystalline material with associated methods:
 
 import numpy as np
 from gemmi import cif  #pylint: disable-msg=no-name-in-module
+from standard_forcefields import atomic_mass
 
 
 class MOF_crystal:
@@ -306,3 +307,17 @@ class MOF_crystal:
                            atom_labels=atom_labels,
                            ratoms=ratoms,
                            charges=charges)
+
+    def cell_weight(self):
+        """
+        Compute the molecular weight of the MOF cell
+        Units are atomic mass units
+        """
+
+        total_mass = 0.
+        for atom in self.atom_symbols:
+            try:
+                total_mass += atomic_mass[atom]
+            except Exception as e:
+                raise Exception('Unknown atom symbol', atom) from e
+        return total_mass
