@@ -15,19 +15,28 @@ Provide a class for a P 1 crystalline material with associated methods:
 
   WARNING: This code is currently assuming the Hermann–Mauguin symmetry space group is "P 1"
            No checks are made to confirm the space group type
+
+  Fractional <-> Real Conversions:
+    s = np.dot(H_inv,r)
+    r = np.dot(H,s)
 """
 
 import numpy as np
 from gemmi import cif  #pylint: disable-msg=no-name-in-module
 from standard_forcefields import atomic_mass
 
+DEG_TO_RAD = np.pi / 180.
+
 
 class MOF_crystal:
     """ Class for P 1 crystalline material """
 
+    #pylint: disable-msg=too-many-instance-attributes
+
     # pylint: disable-msg=too-many-arguments
     def __init__(self,
                  box=None,
+                 angles=None,
                  atom_symbols=None,
                  ratoms=None,
                  charges=None,
@@ -35,12 +44,36 @@ class MOF_crystal:
         """ Default Constructor: pass arguments for unit cell, atoms, positions,
             and charges directly to class object"""
         self.box = box
+        self.angles = angles
         self.atom_symbols = atom_symbols  # _atom_site_type_symbol from CIF standard
         self.atom_labels = atom_labels  # _atom_site_label from CIF standard
         self.ratoms = ratoms
         self.charges = charges
         self.forcefield = []
         self.LJ_params = []
+
+        #Compute the lattice matrix
+        self.H = np.array([
+            [
+                box[0], box[1] * np.cos(angles[2] * DEG_TO_RAD),
+                box[2] * np.cos(angles[1] * DEG_TO_RAD)
+            ],
+            [
+                0.e0, box[1] * np.sin(angles[2] * DEG_TO_RAD),
+                box[2] * (np.cos(angles[0] * DEG_TO_RAD) - np.cos(
+                    angles[1] * DEG_TO_RAD) * np.cos(angles[2] * DEG_TO_RAD)) /
+                np.sin(angles[2] * DEG_TO_RAD)
+            ],
+            [
+                0.e0, 0.e0,
+                box[2] * np.sqrt((np.sin(angles[1] * DEG_TO_RAD))**2 -
+                                 ((np.cos(angles[0] * DEG_TO_RAD) -
+                                   np.cos(angles[1] * DEG_TO_RAD) *
+                                   np.cos(angles[2] * DEG_TO_RAD))**2) /
+                                 (np.sin(angles[2] * DEG_TO_RAD))**2)
+            ]
+        ])
+        self.Hinv = np.linalg.inv(self.H)
 
         # Ensure that lists are nparrays
         if not isinstance(self.box, np.ndarray):
@@ -51,6 +84,7 @@ class MOF_crystal:
     @classmethod
     def from_CIF(cls, file):
         #pylint: disable-msg=unnecessary-comprehension
+        #pylint: disable-msg=too-many-locals
         """ Construct object from CIF file  """
         cif_data = cif.read(file).sole_block()
         # Unit Cell Parameters
@@ -59,6 +93,11 @@ class MOF_crystal:
             float(cif_data.find_values('_cell_length_b')[0]),
             float(cif_data.find_values('_cell_length_c')[0])
         ])
+        angles = np.array([
+            float(cif_data.find_values('_cell_angle_alpha')[0]),
+            float(cif_data.find_values('_cell_angle_beta')[0]),
+            float(cif_data.find_values('_cell_angle_gamma')[0])
+        ])
         # Atom Symbols [e.g., Carbon=C, Oxygen=O, etc.]
         atom_symbols = [
             x for x in cif_data.find_loop('_atom_site_type_symbol')
@@ -66,12 +105,10 @@ class MOF_crystal:
         # Atom Labels [i.e., the specific type of the atom]
         atom_labels = [x for x in cif_data.find_loop('_atom_site_label')]
         # Atom Positions
-        x = np.array(cif_data.find_loop('_atom_site_fract_x'),
-                     dtype=float) * box[0]
-        y = np.array(cif_data.find_loop('_atom_site_fract_y'),
-                     dtype=float) * box[1]
-        z = np.array(cif_data.find_loop('_atom_site_fract_z'),
-                     dtype=float) * box[2]
+        x = np.array(cif_data.find_loop('_atom_site_fract_x'), dtype=float)
+        y = np.array(cif_data.find_loop('_atom_site_fract_y'), dtype=float)
+        z = np.array(cif_data.find_loop('_atom_site_fract_z'), dtype=float)
+        # Stored as fractional coordinates
         ratoms = np.array([[xi, yi, zi] for xi, yi, zi in zip(x, y, z)])
         # Basic validation
         Nsymbols = len(atom_symbols)
@@ -101,27 +138,31 @@ class MOF_crystal:
         else:
             charges = []
         return cls(box=box,
+                   angles=angles,
                    atom_symbols=atom_symbols,
                    atom_labels=atom_labels,
                    ratoms=ratoms,
                    charges=charges)
 
     @classmethod
-    def from_XYZ(cls, file, box):
+    def from_XYZ(cls, file, box, angles):
         """ Construct object from XYZ file plus (orthorhombic) unit cell parameters """
         with open(file, mode='r') as f:
             lines = f.read().splitlines()
         atom_symbols = []
         ratoms = []
         charges = []
+        # What to do: build the lattice matrix? or do something fancy later?
         for line in lines[2:]:
             entries = line.split()
             atom_symbols.append(entries[0])
-            ratoms.append([float(x) for x in entries[1:4]])
+            real_pos = [float(x) for x in entries[1:4]]
+            #frac_pos = np.dot(H_inv,real_pos)
+            ratoms.append(real_pos)
         ratoms = np.array(ratoms)
         box = np.array(box)
-        # atom_labels????
         return cls(box=box,
+                   angles=angles,
                    atom_symbols=atom_symbols,
                    ratoms=ratoms,
                    charges=charges)
@@ -131,7 +172,8 @@ class MOF_crystal:
         with open(outfile, mode='w') as f:
             f.write(str(len(self.ratoms)) + '\n')
             f.write('\n')
-            for atom, pos in zip(self.atom_symbols, self.ratoms):
+            for atom, frac_pos in zip(self.atom_symbols, self.ratoms):
+                pos = np.dot(self.H, frac_pos)
                 f.write(atom)
                 for idim in range(3):
                     f.write(' ' + str(pos[idim]))
@@ -147,9 +189,9 @@ class MOF_crystal:
         block.set_pair('_cell_length_a', str(self.box[0]))
         block.set_pair('_cell_length_b', str(self.box[1]))
         block.set_pair('_cell_length_c', str(self.box[2]))
-        block.set_pair('_cell_angle_alpha', str(90.0))
-        block.set_pair('_cell_angle_beta', str(90.0))
-        block.set_pair('_cell_angle_gamma', str(90.0))
+        block.set_pair('_cell_angle_alpha', str(self.angles[0]))
+        block.set_pair('_cell_angle_beta', str(self.angles[1]))
+        block.set_pair('_cell_angle_gamma', str(self.angles[2]))
         volume = self.box[0] * self.box[1] * self.box[2]
         block.set_pair('_cell_volume', str(volume))
         # Build the _atom_site loop
@@ -170,15 +212,9 @@ class MOF_crystal:
         # Atom Position
         columns += ['fract_x', 'fract_y', 'fract_z']
         loop_data += [
-            list(
-                np.array([x[0] / self.box[0]
-                          for x in self.ratoms]).astype(str)),
-            list(
-                np.array([x[1] / self.box[1]
-                          for x in self.ratoms]).astype(str)),
-            list(
-                np.array([x[2] / self.box[2]
-                          for x in self.ratoms]).astype(str))
+            list(np.array([x[0] for x in self.ratoms]).astype(str)),
+            list(np.array([x[1] for x in self.ratoms]).astype(str)),
+            list(np.array([x[2] for x in self.ratoms]).astype(str))
         ]
         # Charges?
         if len(self.charges) == Natoms and write_charges:
@@ -202,7 +238,7 @@ class MOF_crystal:
         for idim in range(3):
             rmin = min([x[idim] for x in self.ratoms])
             for x in self.ratoms:
-                x[idim] += -rmin - self.box[idim] / 2.
+                x[idim] += -rmin - 1. / 2.
 
     def add_LJ_forcefield(self, input_dict):
         """ Import a dictionary of atom types with associated Lennard-Jones parameters """
@@ -268,6 +304,7 @@ class MOF_crystal:
                 'ERROR: Cannot replicate cell without box specification')
         # Replicate the atoms and positions
         box = [self.box[idim] * float(reps[idim]) for idim in range(3)]
+        angles = self.angles
         atom_symbols = []
         atom_labels = []
         ratoms = []
@@ -303,6 +340,7 @@ class MOF_crystal:
                         if copy_charges:
                             charges.append(self.charges[iatom])
         return MOF_crystal(box=box,
+                           angles=angles,
                            atom_symbols=atom_symbols,
                            atom_labels=atom_labels,
                            ratoms=ratoms,

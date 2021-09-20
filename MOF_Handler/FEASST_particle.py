@@ -3,6 +3,8 @@
 # pylint: disable-msg=too-many-locals
 """ Function to generate a FEASST particle file """
 
+import numpy as np
+
 
 def FEASST_particle(mof, cutoff=10.0):
     """
@@ -74,7 +76,8 @@ def FEASST_particle(mof, cutoff=10.0):
         particle += ' charge ' + str(site['charge'])
         particle += '\n'
     particle += '\nSites\n\n'
-    for index, pos in enumerate(mof.ratoms):
+    for index, frac_pos in enumerate(mof.ratoms):
+        pos = np.dot(mof.H, frac_pos)
         site_type = atom_site_id[index]
         particle += str(index) + ' '
         particle += str(site_type) + ' '
