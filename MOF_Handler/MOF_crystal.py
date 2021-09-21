@@ -24,6 +24,7 @@ Provide a class for a P 1 crystalline material with associated methods:
 import numpy as np
 from gemmi import cif  #pylint: disable-msg=no-name-in-module
 from standard_forcefields import atomic_mass
+from .lattice_ops import lattice_matrix
 
 DEG_TO_RAD = np.pi / 180.
 
@@ -53,26 +54,7 @@ class MOF_crystal:
         self.LJ_params = []
 
         #Compute the lattice matrix
-        self.H = np.array([
-            [
-                box[0], box[1] * np.cos(angles[2] * DEG_TO_RAD),
-                box[2] * np.cos(angles[1] * DEG_TO_RAD)
-            ],
-            [
-                0.e0, box[1] * np.sin(angles[2] * DEG_TO_RAD),
-                box[2] * (np.cos(angles[0] * DEG_TO_RAD) - np.cos(
-                    angles[1] * DEG_TO_RAD) * np.cos(angles[2] * DEG_TO_RAD)) /
-                np.sin(angles[2] * DEG_TO_RAD)
-            ],
-            [
-                0.e0, 0.e0,
-                box[2] * np.sqrt((np.sin(angles[1] * DEG_TO_RAD))**2 -
-                                 ((np.cos(angles[0] * DEG_TO_RAD) -
-                                   np.cos(angles[1] * DEG_TO_RAD) *
-                                   np.cos(angles[2] * DEG_TO_RAD))**2) /
-                                 (np.sin(angles[2] * DEG_TO_RAD))**2)
-            ]
-        ])
+        self.H = lattice_matrix(box, [x * DEG_TO_RAD for x in angles])
         self.Hinv = np.linalg.inv(self.H)
 
         # Ensure that lists are nparrays
@@ -161,6 +143,11 @@ class MOF_crystal:
             ratoms.append(real_pos)
         ratoms = np.array(ratoms)
         box = np.array(box)
+        angles = np.array(angles)
+        H = lattice_matrix(box, [x * DEG_TO_RAD for x in angles])
+        Hinv = np.linalg.inv(H)
+        # convert to fractional coordinates
+        ratoms = [np.dot(Hinv, x) for x in ratoms]
         return cls(box=box,
                    angles=angles,
                    atom_symbols=atom_symbols,
@@ -336,6 +323,9 @@ class MOF_crystal:
                             float(irep[idim] * self.box[idim])
                             for idim in range(3)
                         ]
+                        # position = np.array([
+                        #     x+float(y) for x,y in zip(self.ratoms[iatom],irep)
+                        # ])
                         ratoms.append(position)
                         if copy_charges:
                             charges.append(self.charges[iatom])
