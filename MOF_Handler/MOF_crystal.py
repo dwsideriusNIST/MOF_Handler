@@ -290,7 +290,7 @@ class MOF_crystal:
             raise Exception(
                 'ERROR: Cannot replicate cell without box specification')
         # Replicate the atoms and positions
-        box = [self.box[idim] * float(reps[idim]) for idim in range(3)]
+        box = [boxi * float(repsi) for boxi, repsi in zip(self.box, reps)]
         angles = self.angles
         atom_symbols = []
         atom_labels = []
@@ -318,14 +318,16 @@ class MOF_crystal:
                             atom_symbols.append(self.atom_symbols[iatom])
                         if copy_labels:
                             atom_labels.append(self.atom_labels[iatom])
+                        # position = [
+                        #     (self.ratoms[iatom][idim]
+                        #     + float(irep[idim]))/float(reps[idim]) for idim in range(3)
+                        # ]
                         position = [
-                            self.ratoms[iatom][idim] +
-                            float(irep[idim] * self.box[idim])
-                            for idim in range(3)
+                            (fraci + float(repi)) / float(repsi)
+                            for fraci, repi, repsi in zip(
+                                self.ratoms[iatom], irep, reps)
+                            # have to divide by float(repsi) because box was scaled up earlier
                         ]
-                        # position = np.array([
-                        #     x+float(y) for x,y in zip(self.ratoms[iatom],irep)
-                        # ])
                         ratoms.append(position)
                         if copy_charges:
                             charges.append(self.charges[iatom])
