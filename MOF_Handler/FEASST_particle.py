@@ -82,8 +82,7 @@ def FEASST_particle(mof, cutoff=10.0):
         particle += str(index) + ' '
         particle += str(site_type) + ' '
         for idim in range(3):
-            particle += '{:20.12f}'.format(pos[idim]) + ' '
-        particle += '{:20.12f}'.format(mof.charges[index])
+            particle += '{:20.12f}'.format(pos[idim])
         particle += '\n'
 
     return particle
