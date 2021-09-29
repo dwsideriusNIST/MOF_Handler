@@ -21,6 +21,7 @@ Provide a class for a P 1 crystalline material with associated methods:
     r = np.dot(H,s)
 """
 
+import copy
 import numpy as np
 from gemmi import cif  #pylint: disable-msg=no-name-in-module
 from standard_forcefields import atomic_mass
@@ -230,9 +231,11 @@ class MOF_crystal:
     def add_LJ_forcefield(self, input_dict):
         """ Import a dictionary of atom types with associated Lennard-Jones parameters """
         if len(self.forcefield) == 0:
-            self.forcefield = input_dict
+            self.forcefield = copy.deepcopy(
+                input_dict)  # avoid creating a pointer
         else:
-            self.forcefield += input_dict
+            for atom in input_dict:
+                self.forcefield.append(atom)
 
     def assign_LJ_params(self, mapping):
         """
@@ -249,7 +252,7 @@ class MOF_crystal:
         else:
             raise Exception('Unknown mapping:', mapping)
         LJ_params = []
-        params_fixed = True
+        all_params_fixed = True
         for atom in atom_loop:
             param_fixed = False
             for site_type in self.forcefield:
@@ -259,10 +262,12 @@ class MOF_crystal:
                         'epsilon': site_type['epsilon']
                     })
                     param_fixed = True
+                    break
             if param_fixed is False:
-                params_fixed = False
+                all_params_fixed = False
                 print('Warning: no match for', atom, 'by', mapping)
-        if params_fixed:
+                LJ_params.append({})
+        if all_params_fixed:
             print('LJ Parameters set successfully')
             self.LJ_params = LJ_params
         else:
