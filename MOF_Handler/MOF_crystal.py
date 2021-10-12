@@ -343,7 +343,7 @@ class MOF_crystal:
                            ratoms=ratoms,
                            charges=charges)
 
-    def cell_weight(self):
+    def cell_mass(self):
         """
         Compute the molecular weight of the MOF cell
         Units are atomic mass units
@@ -356,3 +356,18 @@ class MOF_crystal:
             except Exception as e:
                 raise Exception('Unknown atom symbol', atom) from e
         return total_mass
+
+    def cell_volume(self):
+        """
+        Compute the volume of the MOF cell
+        Units are cubic angstroms
+        """
+        # calculation from lattice matrix
+        return np.linalg.det(self.H)
+
+    def cell_density(self):
+        """
+        Compute the bulk density of the MOF cell
+        Units are atomic mass units per cubic angstrom
+        """
+        return self.cell_mass() / self.cell_volume()
