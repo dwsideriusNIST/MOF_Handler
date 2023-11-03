@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # pylint: disable-msg=invalid-name   #because I use snake_case
+# pylint: disable-msg=broad-exception-raised     #because pylint is too strict
 """
 Provide a class for a P 1 crystalline material with associated methods:
   initialize from raw data
@@ -53,6 +54,9 @@ class MOF_crystal:
         self.charges = charges
         self.forcefield = []
         self.LJ_params = []
+        self.sblocks = []
+        self.blocks = []
+        self.block_radii = None
 
         #Compute the lattice matrix
         self.H = lattice_matrix(box, [x * DEG_TO_RAD for x in angles])
@@ -130,7 +134,7 @@ class MOF_crystal:
     @classmethod
     def from_XYZ(cls, file, box, angles):
         """ Construct object from XYZ file plus (orthorhombic) unit cell parameters """
-        with open(file, mode='r') as f:
+        with open(file, mode='r', encoding='utf8') as f:
             lines = f.read().splitlines()
         atom_symbols = []
         ratoms = []
@@ -155,9 +159,78 @@ class MOF_crystal:
                    ratoms=ratoms,
                    charges=charges)
 
+    def add_blocks(self, filename, coords='reduced', read_radii=False):
+        """
+        Function to read RASPA-style blockage file
+        Inputs:
+        filename: name of block file
+        coords: Either 'reduced' or 'absolute'
+        read_radii: bool
+        """
+
+        # Error check input
+        if coords not in ['reduced', 'absolute']:
+            raise ValueError(
+                'Unknown coords variable; must be reduced or absolute')
+
+        # Read the file
+        with open(filename, 'r', encoding='utf8') as handle:
+            lines = handle.read().splitlines()
+        num_blocks = int(lines[0])
+        blocks = []
+        radii = []
+        for block in range(num_blocks):
+            data = lines[block + 1].split()
+            vec = np.array([float(x) for x in data[0:3]])
+            blocks.append(vec)
+            if read_radii:
+                radii.append(float(data[3]))
+        blocks = np.array(blocks)
+
+        # Temporarily convert blocks to reduced coordinates
+        if coords == 'absolute':
+            sblocks = []
+            for block in blocks:
+                vec = np.dot(self.Hinv, block)
+                sblocks.append(vec)
+        else:
+            sblocks = copy.copy(blocks)
+        # Wrap to origin-centered cell
+        for i in range(num_blocks):
+            for idim in range(3):
+                if sblocks[i][idim] > 0.5:
+                    sblocks[i][idim] += -1.0
+
+        # Convert to absolute coordinates and store class attributes
+        self.sblocks = sblocks
+        self.blocks = np.array([np.dot(self.H, x) for x in sblocks])
+        if read_radii:
+            self.block_radii = np.array(radii)
+        else:
+            self.block_radii = None
+
+    def set_block_radii(self):
+        """
+        Function to set block radii based on LJ parameters
+        """
+        radii = []
+        for sblock in self.sblocks:
+            rmin = 100.  # something absurd
+            for r, params in zip(self.ratoms, self.LJ_params):
+                ds = sblock - r
+                sigma = params['sigma']
+                for idim in range(3):
+                    if np.abs(ds[idim]) > 0.5:
+                        ds[idim] = np.abs(ds[idim]) - 1.
+                dr = np.dot(self.H, ds)
+                dr = np.sqrt(np.dot(dr, dr)) - sigma / 2.
+                rmin = min(rmin, dr)
+            radii.append(rmin)
+        self.block_radii = np.array(radii)
+
     def to_XYZ(self, outfile):
         """ Write the MOF as a cartesian XYZ file """
-        with open(outfile, mode='w') as f:
+        with open(outfile, mode='w', encoding='utf8') as f:
             f.write(str(len(self.ratoms)) + '\n')
             f.write('\n')
             for atom, frac_pos in zip(self.atom_symbols, self.ratoms):
@@ -224,7 +297,7 @@ class MOF_crystal:
     def recenter(self):
         """ Recenter the atom positions """
         for idim in range(3):
-            rmin = min([x[idim] for x in self.ratoms])
+            rmin = min(x[idim] for x in self.ratoms)
             for x in self.ratoms:
                 x[idim] += -rmin - 1. / 2.
 

@@ -82,7 +82,29 @@ def FEASST_particle(mof, cutoff=10.0):
         particle += str(index) + ' '
         particle += str(site_type) + ' '
         for idim in range(3):
-            particle += '{:20.12f}'.format(pos[idim])
+            particle += '{:20.12f}'.format(pos[idim])  #pylint: disable=consider-using-f-string
         particle += '\n'
 
     return particle
+
+
+def FEASST_Block_file(mof, HS_cut=0.995):
+    """
+    Generate the ModelHardShape instructions for FEASST
+    """
+    string = ''
+    first_block = True
+    for sblock, radius in zip(mof.sblocks, mof.block_radii):
+        rvec = np.dot(mof.H, sblock)
+        #print(sblock, radius)
+        if not first_block:
+            string += 'union '
+        else:
+            first_block = False
+        string += 'Sphere radius '
+        string += str(HS_cut * radius) + ' '
+        string += 'center c c0 '
+        string += str(rvec[0]) + ' c1 '
+        string += str(rvec[1]) + ' c2 '
+        string += str(rvec[2]) + '\n'
+    return string

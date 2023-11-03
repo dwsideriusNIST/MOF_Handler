@@ -3,4 +3,4 @@
 """Utilities for manipulating MOF Crystal Structures"""
 
 from .MOF_crystal import MOF_crystal
-from .FEASST_particle import FEASST_particle
+from .FEASST_particle import FEASST_particle, FEASST_Block_file
